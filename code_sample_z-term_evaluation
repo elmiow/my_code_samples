@@ -1,0 +1,138 @@
+####################################################################################
+##investigation of change in independent variable contributions to change in dependent variable: 
+##evaluation of change in linear z-term within multivariate non-linear regression model 
+
+##separate analysis for IIASA, OECD and SOCIOMEAN 
+##for cities only: run the MMT estimation again; is actually redundent after having 
+##put in the ENSMN function above, but had to do it quickly to find flaws. 
+##produces a range of neat plots; change plot colors to better visible color pal
+####################################################################################
+
+##define functions
+
+ENSMEAN_MMTestimation_fun <<- function(ENSM.tx,ENSM.ax,ENSM.ex,ENSM.gx,ENSM.wx){ # coefficients from hist_combinations
+  
+  #get coefficients
+  ENSM.ca <<- hist_ENSMEAN_coefficients$casymt 
+  ENSM.da <<- hist_ENSMEAN_coefficients$dasymt
+  ENSM.x1 <<- hist_ENSMEAN_coefficients$x1
+  ENSM.x2 <<- hist_ENSMEAN_coefficients$x2 
+  ENSM.x3 <<- hist_ENSMEAN_coefficients$x3 
+  ENSM.x4 <<- hist_ENSMEAN_coefficients$x4 
+  ENSM.x5 <<- hist_ENSMEAN_coefficients$x5 
+  
+  #MMT estimation 
+  ENSMEAN_estimates <<- (ENSM.ca - ENSM.da)/(1+exp(-1*(ENSM.tx*ENSM.x1 + ENSM.ax*ENSM.x2 + ENSM.ex*ENSM.x3 + ENSM.gx*ENSM.x4 + ENSM.wx*ENSM.x5)) + ENSM.da) ## new estimates
+  
+  #plot(estimates)
+  
+  return(ENSMEAN_estimates)
+}
+
+####################################################################################
+### MAKE ENSMEAN ESTIMATION
+
+
+##.... [PARTS OF THE CODE HAVE BEEN REMOVED]
+
+###create new list for three cases
+ENSMEAN_df_norm_MEANS_IASA.OECD.ALL_list <- list(ENSMEAN_df_norm_IIASA, ENSMEAN_df_norm_OECD, ENSMEAN_df_norm_allorg)
+  
+  hist_ENSMEAN_coefficients <- read.csv(file=paste0(calib_out_path, "calibration_coefficients_historic_ENSMEAN_FEB2021.csv"), stringsAsFactors = F, header =T) 
+  ##make global for use within function
+  hist_ENSMEAN_coefficients <<- hist_ENSMEAN_coefficients 
+
+
+  ###call ENSMEAN_MMTestimation_fun for ensmean estimation for each ORG case
+  
+  ENSMEAN_df_norm_IIASA$ENSMEAN_MMT <- ENSMEAN_MMTestimation_fun(ENSMEAN_df_norm_IIASA$Tmean30, ENSMEAN_df_norm_IIASA$Amplitude30, ENSMEAN_df_norm_IIASA$Elev, ENSMEAN_df_norm_IIASA$`GDP/cap`, ENSMEAN_df_norm_IIASA$Water.access)
+  ENSMEAN_df_norm_OECD$ENSMEAN_MMT <- ENSMEAN_MMTestimation_fun(ENSMEAN_df_norm_OECD$Tmean30, ENSMEAN_df_norm_OECD$Amplitude30, ENSMEAN_df_norm_OECD$Elev, ENSMEAN_df_norm_OECD$`GDP/cap`, ENSMEAN_df_norm_OECD$Water.access)
+  ENSMEAN_df_norm_allorg$ENSMEAN_MMT <- ENSMEAN_MMTestimation_fun(ENSMEAN_df_norm_allorg$Tmean30, ENSMEAN_df_norm_allorg$Amplitude30, ENSMEAN_df_norm_allorg$Elev, ENSMEAN_df_norm_allorg$`GDP/cap`, ENSMEAN_df_norm_allorg$Water.access)  
+  
+  #make list from dfs with MMT estimates (IIASA, OECD, ALL org means [[1]], [[2]], [[3]])
+  #ENSMEAN_df_norm_MEANS_IASA.OECD.ALL_MMTest_list <- #list(ENSMEAN_df_norm_IIASA, ENSMEAN_df_norm_OECD, ENSMEAN_df_norm_allorg)
+  ENSMEAN_df_norm_MEANS_IASA.OECD.ALL_MMTest_list <- list(ENSMEAN_df_norm_allorg)
+  
+  
+  ####call multiply function for df lists and coefficients
+  multiply.fun <- function(in_df, colum, coeff, out){out <<- in_df[[colum]] * coeff}
+  
+  ##create vectors, make global and set colnames
+  coeff_vec <<- c(ENSM.x1, ENSM.x2, ENSM.x3, ENSM.x4, ENSM.x5)
+  colnms_list <<- colnames(ENSMEAN_df_norm_MEANS_IASA.OECD.ALL_MMTest_list[[1]][c(8:12)])
+  
+  ##make lists for loop
+  #out_product_IIASA_list <- list()
+  #out_product_OECD_list <- list()
+  out_product_allorg_list <- list()
+    
+  ### loop over all the columns in each df in the list to multiply with the corresponding value
+  for(c in 1:length(colnms_list)){
+    
+    ##call on multiply function 
+    out_product_col_list <- lapply(ENSMEAN_df_norm_MEANS_IASA.OECD.ALL_MMTest_list, multiply.fun, colum=colnms_list[c], coeff = coeff_vec[c])
+    ##assign dynamic names 
+    assign(paste0("Product_coeff_", colnms_list[c]), out_product_col_list)
+    print(paste0("Product_coeff_", colnms_list[c]))
+    
+    ##regroup according to IIASA, OECD, allorg per variable: write into new lists for all variables to merge them for each of the IIASA, OECD, allorg options
+    ##out_product_ list is going to be appended with each c in colnms_list 
+    #out_product_IIASA_list[[c]] <- out_product_col_list[[1]]  ## first df in out_product_col_list is the IIASA, second the OECD, third the allorg data which is split up here 
+    #out_product_OECD_list[[c]] <- out_product_col_list[[2]]
+    out_product_allorg_list[[c]] <- out_product_col_list[[1]] ## 3
+    
+  }## end for c
+  
+  ####################################################################################
+  ##Evaluate z-term and change in z-term of each variable within ENSMEAN_MMTestimation_fun
+  
+  ##Z-Term from formula 
+  #rowSums(sapply(out_product_IIASA_list, `[[`), na.rm = TRUE)
+  #z.ENSM.cities <<- z.ENSM.t + z.ENSM.a + z.ENSM.e + z.ENSM.g + z.ENSM.w
+  #lapply(as.array(out_product_zterm_list), function(x) lapply(x, rowSums)) 
+  
+  ##evaluation of z-term in function 
+  #out_zterm_col_list <- lapply(ENSMEAN_df_norm_MEANS_IASA.OECD.ALL_MMTest_list, multiply.fun, colum=colnms_list[c], coeff = coeff_vec[c])
+    
+  ##transform produced product vectors in list (5 elements for each variable one) into a df 
+  out_product_IIASA_df <- as.data.frame(do.call(cbind, out_product_IIASA_list))
+  out_product_OECD_df <- as.data.frame(do.call(cbind, out_product_OECD_list))
+  out_product_allorg_df <- as.data.frame(do.call(cbind, out_product_allorg_list))
+  ##make colnames 
+  colnames(out_product_IIASA_df) <- c("Prod.Tmean30", "Prod.Ampli30",  "Prod.Elev", "Prod.GDP/cap", "Prod.Water") #, "Z.term"
+  colnames(out_product_OECD_df) <- c("Prod.Tmean30", "Prod.Ampli30",  "Prod.Elev", "Prod.GDP/cap", "Prod.Water") #,"Z.term"
+  colnames(out_product_allorg_df) <- c("Prod.Tmean30", "Prod.Ampli30",  "Prod.Elev", "Prod.GDP/cap", "Prod.Water") #, "Z.term"
+  
+  #apply(out_product_IIASA_df[,cols],1,sum) 
+  
+  ##calculate z-term across the variables 
+  z.ENSM.cities_IIASA <- as.numeric(apply(out_product_IIASA_df[,1:length(out_product_IIASA_df)], 1, sum))
+  z.ENSM.cities_OECD <- as.numeric(apply(out_product_OECD_df[,1:length(out_product_OECD_df)], 1, sum))
+  z.ENSM.cities_allorg <- as.numeric(apply(out_product_allorg_df[,1:length(out_product_allorg_df)], 1, sum))
+  
+  ###Make final df from: city info, the ENSMEAN MMT, normalised variables, coefficients, products of variables and coefficients, z-term 
+  z_term_ENSM_cities_variable_mmt_dat_IIASA <- cbind(city_info, ENSMEAN_df_norm_IIASA$ENSMEAN_MMT, ENSMEAN_df_norm_IIASA$Tmean30, ENSMEAN_df_norm_IIASA$Amplitude30, ENSMEAN_df_norm_IIASA$Elev, ENSMEAN_df_norm_IIASA$`GDP/cap`, ENSMEAN_df_norm_IIASA$Water.access, ENSM.ca, ENSM.da, ENSM.x1, ENSM.x2, ENSM.x3, ENSM.x4, ENSM.x5, out_product_IIASA_df, z.ENSM.cities_IIASA) 
+  z_term_ENSM_cities_variable_mmt_dat_OECD <- cbind(city_info, ENSMEAN_df_norm_OECD$ENSMEAN_MMT, ENSMEAN_df_norm_OECD$Tmean30, ENSMEAN_df_norm_OECD$Amplitude30, ENSMEAN_df_norm_OECD$Elev, ENSMEAN_df_norm_OECD$`GDP/cap`, ENSMEAN_df_norm_OECD$Water.access, ENSM.ca, ENSM.da, ENSM.x1, ENSM.x2, ENSM.x3, ENSM.x4, ENSM.x5,out_product_OECD_df, z.ENSM.cities_OECD) 
+  z_term_ENSM_cities_variable_mmt_dat_allorg <- cbind(city_info, ENSMEAN_df_norm_allorg$ENSMEAN_MMT, ENSMEAN_df_norm_allorg$Tmean30, ENSMEAN_df_norm_allorg$Amplitude30, ENSMEAN_df_norm_allorg$Elev, ENSMEAN_df_norm_allorg$`GDP/cap`, ENSMEAN_df_norm_allorg$Water.access, ENSM.ca, ENSM.da, ENSM.x1, ENSM.x2, ENSM.x3, ENSM.x4, ENSM.x5, out_product_allorg_df, z.ENSM.cities_allorg) 
+  ##name columns 
+  colnames(z_term_ENSM_cities_variable_mmt_dat_IIASA)[c(8:ncol(z_term_ENSM_cities_variable_mmt_dat_IIASA))] <- c("MMT", "Tmean30", "Amplitude30", "Elev", "GDP/cap", "Water.access","Upper.asy", "Lower.asy", "Coeff.Tmean30", "Coeff.Ampli30",  "Coeff.Elev", "Coeff.GDP/cap", "Coeff.Water", "Prod.Tmean30", "Prod.Ampli30",  "Prod.Elev", "Prod.GDP/cap", "Prod.Water", "Z.term")
+  colnames(z_term_ENSM_cities_variable_mmt_dat_OECD)[c(8:ncol(z_term_ENSM_cities_variable_mmt_dat_OECD))] <- c("MMT", "Tmean30", "Amplitude30", "Elev", "GDP/cap", "Water.access","Upper.asy", "Lower.asy", "Coeff.Tmean30", "Coeff.Ampli30",  "Coeff.Elev", "Coeff.GDP/cap", "Coeff.Water", "Prod.Tmean30", "Prod.Ampli30",  "Prod.Elev", "Prod.GDP/cap", "Prod.Water", "Z.term")
+  colnames(z_term_ENSM_cities_variable_mmt_dat_allorg)[c(8:ncol(z_term_ENSM_cities_variable_mmt_dat_allorg))] <- c("MMT", "Tmean30", "Amplitude30", "Elev", "GDP/cap", "Water.access","Upper.asy", "Lower.asy", "Coeff.Tmean30", "Coeff.Ampli30",  "Coeff.Elev", "Coeff.GDP/cap", "Coeff.Water", "Prod.Tmean30", "Prod.Ampli30",  "Prod.Elev", "Prod.GDP/cap", "Prod.Water", "Z.term")
+  
+  ##make name parts for lists
+  rcp_pretty_nm <- paste("RCP", ENSMN_matrix$rcp[m])
+  ssp_pretty_nm <- paste0("SSP",  ENSMN_matrix$ssp[m])
+  rcp_nm <- paste0("_rcp", ENSMN_matrix$rcp[m]*10)
+  ssp_nm <- paste0("_ssp", ENSMN_matrix$ssp[m])
+  ##assign names to lists 
+  assign(paste0("z_term_ENSM_cities_variable_mmt_dat_IIASA", rcp_nm, ssp_nm) , z_term_ENSM_cities_variable_mmt_dat_IIASA)
+  assign(paste0("z_term_ENSM_cities_variable_mmt_dat_OECD", rcp_nm, ssp_nm), z_term_ENSM_cities_variable_mmt_dat_OECD)
+  assign(paste0("z_term_ENSM_cities_variable_mmt_dat_allorg", rcp_nm, ssp_nm), z_term_ENSM_cities_variable_mmt_dat_allorg)
+  
+  ####################################################################################
+  ##write files 
+  write.csv(z_term_ENSM_cities_variable_mmt_dat_IIASA, file=paste0(cities_ENSMEAN_coeff_prod_zterm_extr_path, paste0("ENSMEAN_Cities_Var_Coeff_Prod_Zterm_IIASA", rcp_nm, ssp_nm, "_2100", today_date, "_table.csv")), row.names = F, quote = F)  ## Cities_TEST
+  write.csv(z_term_ENSM_cities_variable_mmt_dat_OECD, file=paste0(cities_ENSMEAN_coeff_prod_zterm_extr_path, paste0("ENSMEAN_Cities_Var_Coeff_Prod_Zterm_OECD",  rcp_nm, ssp_nm, "_2100", today_date, "_table.csv")), row.names = F, quote = F)  ## Cities_TEST
+  write.csv(z_term_ENSM_cities_variable_mmt_dat_allorg, file=paste0(cities_ENSMEAN_coeff_prod_zterm_extr_path, paste0("ENSMEAN_Cities_Var_Coeff_Prod_Zterm_allorg", rcp_nm, ssp_nm, "_2100", today_date, "_table.csv")), row.names = F, quote = F)  ## Cities_TEST
+ 
+ ####################################################################################
